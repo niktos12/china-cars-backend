@@ -4,28 +4,24 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 /**
- * Единая точка доступа к БД.
- *
- * Бэкенд "включается" только если задан DATABASE_URL:
- *  - локально и в песочнице переменной может не быть -> работает демо-режим;
- *  - на Railway/Neon переменная приходит от сервиса PostgreSQL -> реальная БД.
+ * Подключение к Postgres через postgres.js.
+ * prepare: false обязателен для serverless (Vercel) — pgbouncer/Neon pooled.
  */
 export const isDbConfigured = /^postgres(ql)?:\/\//.test(
   process.env.DATABASE_URL ?? "",
 );
 
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let client: ReturnType<typeof postgres> | null = null;
 
 export function getDb() {
   if (!isDbConfigured) return null;
-  if (!_db) {
-    // postgres.js сам умеет парсить строку подключения
-    const client = postgres(process.env.DATABASE_URL!, {
-      prepare: false, // важно для managed-провайдеров Postgres и serverless
+  if (!client) {
+    client = postgres(process.env.DATABASE_URL as string, {
+      prepare: false,
+      max: 5,
     });
-    _db = drizzle(client, { schema });
   }
-  return _db;
+  return drizzle(client, { schema });
 }
 
 export { schema };

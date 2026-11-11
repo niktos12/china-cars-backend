@@ -1,10 +1,8 @@
-import type { NewProduct } from "./db/schema";
+import type { NewProduct } from "../db/schema";
 
 /**
- * Заглушки для макета (разрешено ТЗ).
- * Используются, когда DATABASE_URL не задан или БД недоступна,
- * а также для первичного наполнения БД (scripts/seed.ts).
- * Цены — примерные, заменить на реальные.
+ * Демо-данные — используются, когда DATABASE_URL не задан или БД недоступна.
+ * Копия src/server/demo-data.ts фронтенда. Замените на реальные позиции.
  */
 export const DEMO_PRODUCTS: NewProduct[] = [
   {
@@ -74,3 +72,16 @@ export const DEMO_PRODUCTS: NewProduct[] = [
     imageUrl: "/images/haval-h3.jpg",
   },
 ];
+
+/** Заявки в демо-режиме копятся в памяти процесса (сбрасываются при рестарте). */
+export interface DemoLead {
+  id: number;
+  name: string;
+  phone: string;
+  carModel: string | null;
+  message: string | null;
+  source: string;
+  createdAt: string;
+}
+
+export const demoLeads: DemoLead[] = [];

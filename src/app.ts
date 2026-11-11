@@ -1,47 +1,76 @@
-import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 
 import { adminRouter } from "./routes/admin";
-import { publicRouter } from "./routes/public";
+import { leadsRouter } from "./routes/leads";
+import { productsRouter } from "./routes/products";
 
 /**
- * Фабрика Express-приложения. Вынесена отдельно от server.ts, чтобы
- * один и тот же код работал:
- *  - как обычный долгоживущий сервер (npm start / Railway);
- *  - как serverless-функция на Vercel (api/index.ts).
+ * CORS настроен:
+ *  - CORS_ORIGIN не задан            -> разрешены все домены (access-control-allow-origin: *)
+ *  - CORS_ORIGIN=https://a.ru,https://b.vercel.app -> только перечисленные домены.
+ * Заголовки Authorization (Bearer-токен админки) и Content-Type разрешены явно,
+ * preflight (OPTIONS) обрабатывается автоматически пакетом cors.
  */
-export function createApp(): express.Express {
-  const app = express();
+function buildCorsOrigin() {
+  const raw = (process.env.CORS_ORIGIN ?? "").trim();
+  if (!raw) return true; // разрешить всем (удобно на старте)
 
-  // За обратным прокси (Railway/Vercel/Next.js) корректно определяем https
-  app.set("trust proxy", 1);
+  const list = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : true;
+}
 
-  // CORS нужен только для ПРЯМЫХ запросов к API из других источников
-  // (мобильное приложение, тесты и т.п.). Сайт ходит через same-origin
-  // прокси Next.js, ему CORS не требуется.
-  const corsOrigin = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
-    : true;
-  app.use(cors({ origin: corsOrigin, credentials: false }));
+const app = express();
 
-  app.use(express.json({ limit: "200kb" }));
-  app.use(cookieParser());
+app.set("trust proxy", 1);
+app.use(
+  cors({
+    origin: buildCorsOrigin(),
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false, // авторизация через Bearer-токен, cookies не нужны
+    maxAge: 86400,
+  }),
+);
+app.use(express.json({ limit: "32kb" }));
 
-  app.use("/api", publicRouter);
-  app.use("/api/admin", adminRouter);
-
-  // 404 для неизвестных путей
-  app.use((_req: Request, res: Response) => {
-    res.status(404).json({ error: "Не найдено" });
+/* Health-check: GET /api/health */
+app.get("/api/health", (_req, res) => {
+  const dbConfigured = /^postgres(ql)?:\/\//.test(
+    process.env.DATABASE_URL ?? "",
+  );
+  res.json({
+    ok: true,
+    service: "steelcraft-tuning-api",
+    db: dbConfigured ? "configured" : "demo",
+    admin: Boolean(
+      process.env.ADMIN_USERNAME &&
+        process.env.ADMIN_PASSWORD &&
+        process.env.ADMIN_JWT_SECRET,
+    ),
+    time: new Date().toISOString(),
   });
+});
 
-  // Централизованный обработчик ошибок
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[api] Ошибка обработки запроса:", err);
+app.use("/api/products", productsRouter);
+app.use("/api/leads", leadsRouter);
+app.use("/api/admin", adminRouter);
+
+/* 404 — неизвестный путь */
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: "Маршрут не найден" });
+});
+
+/* Централизованный обработчик ошибок */
+app.use(
+  (err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("[api] Unhandled error:", err);
     if (res.headersSent) return;
     res.status(500).json({ error: "Внутренняя ошибка сервера" });
-  });
+  },
+);
 
-  return app;
-}
+export default app;

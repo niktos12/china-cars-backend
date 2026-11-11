@@ -17,7 +17,6 @@ CREATE TABLE "products" (
 	"material" varchar(160) NOT NULL,
 	"description" text NOT NULL,
 	"price_from" integer,
-	"image_url" text,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "products_slug_unique" UNIQUE("slug")

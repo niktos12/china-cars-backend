@@ -1,41 +1,29 @@
 /**
- * Первичное наполнение БД демо-товарами (заглушки из ТЗ).
- *
- * Запуск локально против БД Railway/Neon:
- *   DATABASE_URL="postgresql://..." npm run db:seed
- *
- * Повторный запуск безопасен: существующие slug-ы не дублируются.
+ * Первичное наполнение БД демо-товарами: npm run db:seed
+ * Повторный запуск безопасен (конфликт по slug игнорируется).
  */
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import "dotenv/config";
 
-import { DEMO_PRODUCTS } from "../src/demo-data";
-import * as schema from "../src/db/schema";
+import { getDb, isDbConfigured } from "../src/db";
+import { products } from "../src/db/schema";
+import { DEMO_PRODUCTS } from "../src/lib/demo-data";
 
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    console.error("DATABASE_URL не задан. Пример:");
-    console.error('  DATABASE_URL="postgresql://user:pass@host:5432/db" npm run db:seed');
+  if (!isDbConfigured) {
+    console.error("DATABASE_URL не задан. Заполните .env и повторите.");
     process.exit(1);
   }
 
-  const client = postgres(url, { prepare: false });
-  const db = drizzle(client, { schema });
+  const db = getDb()!;
+  await db.insert(products).values(DEMO_PRODUCTS).onConflictDoNothing({
+    target: products.slug,
+  });
 
-  const inserted = await db
-    .insert(schema.products)
-    .values(DEMO_PRODUCTS)
-    .onConflictDoNothing({ target: schema.products.slug })
-    .returning({ slug: schema.products.slug });
-
-  console.log(`Готово. Новых товаров добавлено: ${inserted.length}`);
-  inserted.forEach((p) => console.log(`  + ${p.slug}`));
-
-  await client.end();
+  console.log(`Засеяно позиций: ${DEMO_PRODUCTS.length}`);
+  process.exit(0);
 }
 
 main().catch((err) => {
-  console.error("Ошибка наполнения БД:", err);
+  console.error(err);
   process.exit(1);
 });

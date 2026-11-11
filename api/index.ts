@@ -1,15 +1,15 @@
-import "dotenv/config";
-
-import { createApp } from "../src/app";
+import app from "../src/app";
 
 /**
- * Входная точка для Vercel (вариант «бэкенд отдельным проектом на Vercel»).
- * Vercel оборачивает этот Express-приложение в serverless-функцию:
- * все пути проекта переписываются на /api/index через vercel.json.
+ * Точка входа для Vercel Serverless Functions.
+ * vercel.json направляет ВСЕ запросы (rewrite /(.*)) на эту функцию,
+ * а внутри запросы маршрутизирует уже Express.
  *
- * Особенности serverless: холодный старт и подключения к БД — используйте
- * pooled-строку подключения (у Neon это хост с -pooler).
+ * VercelRequest/VercelResponse структурно совместимы с
+ * express Request/Response, поэтому достаточно вызвать app(...).
  */
-const app = createApp();
-
-export default app;
+export default function handler(
+  ...args: Parameters<typeof app>
+): ReturnType<typeof app> {
+  return app(...args);
+}

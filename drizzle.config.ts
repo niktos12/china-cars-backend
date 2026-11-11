@@ -1,7 +1,7 @@
 import "dotenv/config";
+
 import { defineConfig } from "drizzle-kit";
 
-// Миграции живут внутри server/ — бэкенд единолично владеет схемой БД.
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema.ts",
@@ -9,6 +9,6 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL ?? "",
   },
+  strict: true,
   verbose: true,
-  strict: false,
 });
