@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { Router } from "express";
 
 import { getDb } from "../db";
+import { dbErrorMessage } from "../lib/db-errors";
 import { leads, products } from "../db/schema";
 import { demoLeads, DEMO_PRODUCTS } from "../lib/demo-data";
 import {
@@ -87,7 +88,38 @@ adminRouter.get("/leads", async (_req, res) => {
     res.json({ demo: false, leads: rows });
   } catch (err) {
     console.error("[GET /api/admin/leads] DB error:", err);
-    res.status(500).json({ error: "Ошибка базы данных" });
+    res.status(500).json({ error: dbErrorMessage(err) });
+  }
+});
+
+/** DELETE /api/admin/leads/:id — удалить заявку (кнопка в админке) */
+adminRouter.delete("/leads/:id", async (req, res) => {
+  const db = getDb();
+  if (!db) {
+    res.status(503).json({ error: "БД не подключена: изменение недоступно в демо-режиме" });
+    return;
+  }
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Некорректный id" });
+    return;
+  }
+
+  try {
+    const deleted = await db
+      .delete(leads)
+      .where(eq(leads.id, id))
+      .returning({ id: leads.id });
+
+    if (deleted.length === 0) {
+      res.status(404).json({ error: "Заявка не найдена" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[DELETE /api/admin/leads/:id] DB error:", err);
+    res.status(500).json({ error: "Не удалось удалить заявку" });
   }
 });
 
@@ -119,7 +151,7 @@ adminRouter.get("/products", async (_req, res) => {
     res.json({ demo: false, products: rows });
   } catch (err) {
     console.error("[GET /api/admin/products] DB error:", err);
-    res.status(500).json({ error: "Ошибка базы данных" });
+    res.status(500).json({ error: dbErrorMessage(err) });
   }
 });
 

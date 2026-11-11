@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { Router } from "express";
 
 import { getDb } from "../db";
+import { dbErrorMessage } from "../lib/db-errors";
 import { products, type Product } from "../db/schema";
 import { DEMO_PRODUCTS } from "../lib/demo-data";
 
@@ -62,7 +63,7 @@ productsRouter.get("/", async (_req, res) => {
     res.json({ demo: false, products: rows.map(toDto) });
   } catch (err) {
     console.error("[GET /api/products] DB error:", err);
-    res.status(500).json({ error: "Ошибка базы данных" });
+    res.status(500).json({ error: dbErrorMessage(err) });
   }
 });
 
@@ -95,6 +96,6 @@ productsRouter.get("/:slug", async (req, res) => {
     res.json({ demo: false, product: toDto(row) });
   } catch (err) {
     console.error("[GET /api/products/:slug] DB error:", err);
-    res.status(500).json({ error: "Ошибка базы данных" });
+    res.status(500).json({ error: dbErrorMessage(err) });
   }
 });

@@ -26,6 +26,7 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 | POST  | `/api/admin/login`       | публично | `{username, password}` -> `{token}` |
 | GET   | `/api/admin/me`          | токен  | проверка сессии |
 | GET   | `/api/admin/leads`       | токен  | все заявки, свежие сверху |
+| DELETE| `/api/admin/leads/:id`   | токен  | удалить заявку |
 | GET   | `/api/admin/products`    | токен  | все товары, включая неактивные |
 | POST  | `/api/admin/products`    | токен  | создать товар |
 | PUT   | `/api/admin/products/:id`| токен  | обновить товар |
@@ -58,6 +59,30 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 `WARNING! Internal rewrites in backend framework projects...` —
 не ошибка: это информационное сообщение о том, что запросы маршрутизируются
 по rewrite из `vercel.json` на `/api/index` (Express). Сборка проходит нормально.
+
+## Пустая база после привязки Neon?
+
+Если `DATABASE_URL` уже задан, но миграции ещё не выполнялись, `/api/products`
+вернёт «Таблицы БД не созданы — выполните миграции...». Лечится один раз локально:
+
+```bash
+cp .env.example .env       # вписать DATABASE_URL от Neon
+npm install
+npm run db:migrate         # создаст таблицы products и leads
+npm run db:seed            # наполнит каталог 6 демо-товарами
+```
+
+Проверка: `curl https://<бэк>.vercel.app/api/products` →
+`{"demo":false,"products":[...]}` (пустой `products: []` — это не ошибка,
+просто без seed). Редеплой после миграций не нужен.
+
+Нюанс строк подключения Neon: для **приложения** (Variables на Vercel)
+используйте pooled-строку (хост содержит `-pooler`), для **миграций локально**
+надёжнее прямая (Direct connection, без `-pooler`).
+
+Альтернатива миграциям: `npx drizzle-kit push --force` создаёт таблицы
+напрямую из `src/db/schema.ts` (флаг `--force` нужен только в
+неинтерактивных средах — CI/скрипты).
 
 ## Что было исправлено
 

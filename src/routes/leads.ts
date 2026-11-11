@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 import { Router } from "express";
 
 import { getDb } from "../db";
+import { dbErrorMessage } from "../lib/db-errors";
 import { leads } from "../db/schema";
 import { demoLeads } from "../lib/demo-data";
 import { leadSchema } from "../lib/validation";
@@ -66,7 +67,9 @@ leadsRouter.post("/", async (req, res) => {
     res.status(201).json({ ok: true, id: inserted[0]?.id ?? null, demo: false });
   } catch (err) {
     console.error("[POST /api/leads] DB error:", err);
-    res.status(500).json({ ok: false, error: "Не удалось сохранить заявку" });
+    res
+      .status(500)
+      .json({ ok: false, error: dbErrorMessage(err) });
   }
 });
 
@@ -88,6 +91,6 @@ leadsRouter.get("/", async (_req, res) => {
     res.json({ demo: false, leads: rows });
   } catch (err) {
     console.error("[GET /api/leads] DB error:", err);
-    res.status(500).json({ error: "Ошибка базы данных" });
+    res.status(500).json({ error: dbErrorMessage(err) });
   }
 });
