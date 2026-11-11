@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -19,8 +19,7 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.4",
     "express": "^4.21.2",
-    "jose": "^5.9.6",
-    "postgres": "^4.1.0",
+    "postgres": "^3.4.9",
     "zod": "^4.0.2"
   },
   "devDependencies": {

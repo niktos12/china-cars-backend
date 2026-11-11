@@ -59,17 +59,44 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 не ошибка: это информационное сообщение о том, что запросы маршрутизируются
 по rewrite из `vercel.json` на `/api/index` (Express). Сборка проходит нормально.
 
-## Что было исправлено (ошибка сборки TS2352)
+## Что было исправлено
+
+### 1. Ошибка сборки TS2352
 
 Было в `src/routes/admin.ts` (~строка 65):
 ```ts
 (req as Request & { adminUsername?: string }).adminUsername = username;
 // error TS2352: ... missing ... cache, credentials, destination, integrity, and 14 more
 ```
-`Request` без импорта из express превращается в глобальный тип Fetch API,
+`Request` без импорта из express превращался в глобальный тип Fetch API,
 поэтому приведение типов было некорректным. Стало:
 - `src/types/express.d.ts` — аугментация `Express.Request` полем `adminUsername`;
 - в коде просто `req.adminUsername = username` без кастов.
+
+### 2. Ошибка рантайма FUNCTION_INVOCATION_FAILED (500 после деплоя)
+
+Сборка проходила, но функция падала при холодном старте. Причины, которые
+устранены в этой версии:
+
+- **`postgres` v4 — ESM-only** (в `package.json` нет CJS-сборки). Скомпилированный
+  tsc/esbuild код — CommonJS, и `require("postgres")` на рантаймах без поддержки
+  require(esm) (Node 20.x и старше) ронял функцию целиком. Заменено на
+  **`postgres` v3.4.x** — у него в exports есть `default → cjs/src/index.js`,
+  чистая CJS-сборка. API использования не изменился (`prepare: false`, `max`).
+- **`jose` заменён на встроенный `node:crypto`** — HS256-JWT считается вручную
+  (см. `src/lib/token.ts`). Ноль зависимостей, быстрее холодный старт, меньше
+  точек отказа.
+- **`engines` зафиксирован на `22.x`** — без `"node": ">=20"` Vercel молча
+  поднимает рантайм до самой свежей major-версии при каждом релизе.
+- **Защита от `listen()` в serverless**: в `src/index.ts` порт слушается только
+  вне Vercel (`process.env.VERCEL`). `listen()` внутри функции — самая частая
+  причина FUNCTION_INVOCATION_FAILED.
+- Ошибки обработчика логируются в консоль — их видно в
+  **Vercel Dashboard → Deployments → Runtime Logs**.
+
+Если после деплоя снова увидите 500: откройте Deployments → последний деплой →
+вкладка **Runtime Logs**, повторите запрос и найдите стектрейс (по нему сразу
+видна причина; id вида `arn1::...` из тела ошибки можно поискать в логах).
 
 ## Локальная разработка
 
