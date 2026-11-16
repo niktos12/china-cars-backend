@@ -1,0 +1,23 @@
+# Netlify: бэкенд разворачивается как Netlify Functions (тот же Express,
+# что и на Vercel). Deploy: связать репозиторий в Netlify UI
+# (Base directory = server) либо `netlify deploy` из этой папки.
+
+[build]
+  # Сборка не нужна: TS-функции бандлит сам Netlify (node_bundler = esbuild).
+  command = "echo 'Functions bundling is handled by Netlify (esbuild)'"
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Все запросы /api/* идут в функцию api (внутри — Express).
+# force = true: переопределяет любые файлы в publish-каталоге.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200
+  force = true
+
+[dev]
+  autoLaunch = false

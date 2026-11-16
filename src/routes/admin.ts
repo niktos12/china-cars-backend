@@ -138,6 +138,7 @@ adminRouter.get("/products", async (_req, res) => {
         priceFrom: p.priceFrom ?? null,
         imageUrl: p.imageUrl ?? null,
         isActive: true,
+        createdAt: new Date(Date.now() - i * 86_400_000).toISOString(),
       })),
     });
     return;

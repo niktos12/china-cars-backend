@@ -19,7 +19,7 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 
 | Метод | Путь                     | Доступ | Описание |
 |-------|--------------------------|--------|----------|
-| GET   | `/api/health`            | публично | статус сервиса: `{ ok, db: "configured"|"demo", admin }` |
+| GET   | `/api/health`            | публично | статус: `{ ok, db: "configured"|"demo", admin, adminMissing[] }` |
 | GET   | `/api/products`          | публично | каталог (только активные), `demo: true` если БД не подключена |
 | GET   | `/api/products/:slug`    | публично | одна позиция |
 | POST  | `/api/leads?source=...`  | публично | заявка с формы; 201 / 422 |
@@ -41,6 +41,24 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 | `ADMIN_JWT_SECRET` | случайная строка 32+ символа (`openssl rand -hex 32`) |
 | `CORS_ORIGIN` | домены фронта через запятую, напр. `https://ваш-фронт.vercel.app`. Не задано = разрешить всем |
 
+### Два (или больше) фронтенда — CORS
+
+Разрешить запросы сразу с двух хостингов фронта — просто перечислите оба домена
+в одной переменной `CORS_ORIGIN` через запятую (без пробелов, без `/` на конце):
+
+```bash
+CORS_ORIGIN=https://granfort.ru,https://granfort-vercel.vercel.app
+```
+
+- Сервер отвечает `Access-Control-Allow-Origin: <домен запроса>` только тем,
+  кто есть в списке; чужой домен получает запрос без CORS-заголовков (браузер его блокирует).
+- Локальную разработку добавьте туда же: `...,http://localhost:3000`.
+- Изменили переменную на Vercel — сделайте Redeploy, иначе старое значение останется в сборке.
+- Проверить можно curl'ом — домен из списка вернёт заголовок, чужой — нет:
+  ```bash
+  curl -s -i https://<бэк>/api/health -H "Origin: https://granfort.ru" | grep -i allow-origin
+  ```
+
 ## Деплой на Vercel
 
 1. Импортировать репозиторий как новый проект (Framework Preset определится сам; если спросит — Root Directory оставить `/`).
@@ -59,6 +77,28 @@ REST-бэкенд сайта автотюнинга на **Node.js + Express + D
 `WARNING! Internal rewrites in backend framework projects...` —
 не ошибка: это информационное сообщение о том, что запросы маршрутизируются
 по rewrite из `vercel.json` на `/api/index` (Express). Сборка проходит нормально.
+
+## Деплой на Netlify (второй хостинг)
+
+Тот же Express работает на Netlify Functions: `netlify.toml` +
+`netlify/functions/api.ts` (адаптер `serverless-http` уже в зависимостях).
+
+1. В Netlify: Add new site -> Import an existing project; **Base directory = server**
+   (если репозиторий общий) или подключить репозиторий бэкенда целиком.
+   Собирает Netlify сам: TS-функции бандлятся esbuild'ом, отдельная сборка не нужна.
+2. Задать те же Environment Variables, что и на Vercel, и **обязательно
+   те же значения**: одинаковые `DATABASE_URL`, `ADMIN_JWT_SECRET`,
+   `ADMIN_USERNAME`/`ADMIN_PASSWORD` и `CORS_ORIGIN`. Общий `DATABASE_URL`
+   держит данные одинаковыми, общий `ADMIN_JWT_SECRET` делает токен,
+   выпущенный Vercel'ом, действительным и на Netlify (и наоборот).
+3. Проверка: `https://<проект>.netlify.app/api/health` — тот же JSON,
+   что и на Vercel (redirect `/api/*` -> function уже настроен в `netlify.toml`).
+
+Зачем два хостинга: фронтенд (`NEXT_PUBLIC_API_URLS`, см. README фронтенда)
+шлёт GET-запросы на оба адреса сразу и берёт первый успешный ответ —
+если Vercel тормозит или лежит, всё продолжает отвечать Netlify (и наоборот).
+Записи (POST/PUT/DELETE) идут на первый бэкенд с фолбэком на второй,
+чтобы заявки и товары не создавались дважды.
 
 ## Пустая база после привязки Neon?
 
@@ -127,9 +167,38 @@ npm run db:seed            # наполнит каталог 6 демо-това
 
 ```bash
 npm install
-cp .env.example .env   # заполнить
+cp .env.example .env   # заполнить (DATABASE_URL можно не задавать — будет демо-режим)
 npm run dev            # http://localhost:3001/api/health
 ```
+
+### Если админка пишет «Админка не настроена … в Variables» при локальном запуске
+
+Раньше сервер не читал .env вообще (dotenv подключался только в seed-скрипте
+и drizzle.config.ts), поэтому ADMIN_* были пусты при любом заполненном .env.
+Теперь .env загружается автоматически при старте API (см. `src/env.ts`,
+подключён первым импортом в `src/app.ts`).
+
+Где может лежать .env — работают оба варианта:
+
+- `server/.env` — рядом с package.json (стандарт);
+- `.env` в корне репо — рядом с фронтендом.
+
+Проверка после `npm run dev` (смотрите и лог в консоли — при старте печатается
+`[env] Админка настроена …` или список недостающих переменных):
+
+```bash
+curl http://localhost:3001/api/health
+# {"admin":true,"adminMissing":[], ...}   — всё на месте, логин сработает
+# {"admin":false,"adminMissing":["ADMIN_PASSWORD"], ...} — этих имён нет в .env
+```
+
+Частые причины ошибки:
+
+1. Файл называется `.env.txt` (Windows скрывает расширения) — переименуйте в `.env`.
+2. Имена переменных не совпадают: нужны именно `ADMIN_USERNAME` (не
+   `ADMIN_LOGIN`) и `ADMIN_JWT_SECRET` (не `JWT_SECRET`).
+3. Переменные заданы только в терминале (export/set), а запускаете в другом
+   окне — проще прописать их в .env.
 
 ## Проверка CORS
 

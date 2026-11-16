@@ -1,5 +1,6 @@
 import app from "./app";
 import { isDbConfigured } from "./db";
+import { logEnvStatus } from "./env";
 
 /**
  * Локальный запуск: npm run dev (tsx watch) или npm run build && npm start.
@@ -12,6 +13,7 @@ import { isDbConfigured } from "./db";
 const port = Number(process.env.PORT ?? 3001);
 
 function bootstrap() {
+  logEnvStatus(); // сразу видно, найден ли .env и заданы ли ADMIN_*
   app.listen(port, () => {
     console.log(`steelcraft-tuning-api слушает http://localhost:${port}`);
     console.log(

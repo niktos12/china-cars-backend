@@ -1,6 +1,11 @@
+/* ЗАГРУЗКА .env — самый первый импорт: переменные должны быть готовы
+ * до чтения process.env в остальных модулях (см. src/env.ts). */
+import "./env";
+
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 
+import { ADMIN_ENV_KEYS } from "./env";
 import { adminRouter } from "./routes/admin";
 import { leadsRouter } from "./routes/leads";
 import { productsRouter } from "./routes/products";
@@ -42,15 +47,14 @@ app.get("/api/health", (_req, res) => {
   const dbConfigured = /^postgres(ql)?:\/\//.test(
     process.env.DATABASE_URL ?? "",
   );
+  /* adminMissing подсказывает, каких именно переменных не хватает:
+   * удобно при локальной отладке (пустой массив = админка настроена). */
   res.json({
     ok: true,
     service: "steelcraft-tuning-api",
     db: dbConfigured ? "configured" : "demo",
-    admin: Boolean(
-      process.env.ADMIN_USERNAME &&
-        process.env.ADMIN_PASSWORD &&
-        process.env.ADMIN_JWT_SECRET,
-    ),
+    admin: ADMIN_ENV_KEYS.every((name) => Boolean(process.env[name])),
+    adminMissing: ADMIN_ENV_KEYS.filter((name) => !process.env[name]),
     time: new Date().toISOString(),
   });
 });
